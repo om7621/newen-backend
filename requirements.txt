@@ -1,3 +1,4 @@
 Flask
 pyodbc
 gunicorn
+flask-cors
