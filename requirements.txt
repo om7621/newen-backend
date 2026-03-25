@@ -1,4 +1,6 @@
-Flask
-pyodbc
-gunicorn
+flask
 flask-cors
+pyodbc
+pandas
+xlsxwriter
+gunicorn
