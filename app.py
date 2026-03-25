@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-import pyodbc
+import pymssql
 import json
 
 app = Flask(__name__)
@@ -18,7 +18,7 @@ connection_string = (
 )
 
 def get_db_connection():
-    return pyodbc.connect(connection_string)
+    return pymssql.connect(connection_string)
 
 @app.route('/')
 def home():
