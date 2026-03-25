@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import pyodbc
 import json
 
 app = Flask(__name__)
+CORS(app)
 
 # Azure SQL Connection
 # Ensure ODBC Driver 18 is installed on your machine
