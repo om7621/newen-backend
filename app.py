@@ -1,13 +1,12 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import pyodbc
-import json
+import pandas as pd
+import io
 
 app = Flask(__name__)
-CORS(app)
+CORS(app) # Ensure this is present to allow Web App access
 
-# Azure SQL Connection
-# Ensure ODBC Driver 18 is installed on your machine
 connection_string = (
     "DRIVER={ODBC Driver 18 for SQL Server};"
     "SERVER=newen-server.database.windows.net,1433;"
@@ -22,85 +21,6 @@ connection_string = (
 def get_db_connection():
     return pyodbc.connect(connection_string)
 
-@app.route('/')
-def home():
-    return "Newen Traceability Backend Running 🚀"
-
-# 1. GET ALL PANELS (For Cloud List)
-@app.route('/get_panels', methods=['GET'])
-def get_panels():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT panel_serial, project_name, product_type FROM Panels ORDER BY panel_serial DESC")
-    columns = [column[0] for column in cursor.description]
-    results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-    conn.close()
-    return jsonify(results)
-
-# 2. FULL SYNC (Panel + All Components)
-@app.route('/sync_full_panel', methods=['POST'])
-def sync_full_panel():
-    data = request.json
-    panel = data['panel']
-    components = data['components']
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        # Upsert Panel
-        cursor.execute("""
-            IF NOT EXISTS (SELECT 1 FROM Panels WHERE panel_serial = ?)
-            INSERT INTO Panels (panel_serial, project_name, product_type, prepared_by, start_date, reference_document, verified_by, remarks, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, panel['panel_serial'], panel['panel_serial'], panel['project_name'], panel['product_type'], 
-             panel['prepared_by'], panel['start_date'], panel['reference_document'], panel['verified_by'], panel['remarks'], panel['status'])
-
-        # Sync Components
-        for comp in components:
-            cursor.execute("""
-                IF NOT EXISTS (SELECT 1 FROM Components WHERE panel_serial = ? AND section_name = ? AND component_name = ?)
-                INSERT INTO Components (panel_serial, section_name, component_name, make, serial_number)
-                VALUES (?, ?, ?, ?, ?)
-            """, comp['panel'], comp['section'], comp['component'], 
-                 comp['panel'], comp['section'], comp['component'], comp['make'], comp['serial'])
-        
-        conn.commit()
-        return jsonify({"status": "success", "message": "Full panel synced"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-    finally:
-        conn.close()
-
-# 3. SECTION SYNC (From inside a section)
-@app.route('/sync_section', methods=['POST'])
-def sync_section():
-    data = request.json
-    panel_serial = data['panel_serial']
-    section_name = data['section_name']
-    items = data['data']
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        # Clear old data for this section to prevent duplicates
-        cursor.execute("DELETE FROM Components WHERE panel_serial = ? AND section_name = ?", panel_serial, section_name)
-        
-        for item in items:
-            cursor.execute("""
-                INSERT INTO Components (panel_serial, section_name, component_name, make, serial_number)
-                VALUES (?, ?, ?, ?, ?)
-            """, panel_serial, section_name, item['component'], item['make'], item['serial'])
-        
-        conn.commit()
-        return jsonify({"status": "success"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-    finally:
-        conn.close()
-
-# 4. GET SECTION DATA (For Cloud Fetch)
 @app.route('/get_section_data', methods=['GET'])
 def get_section_data():
     panel = request.args.get('panel')
@@ -108,11 +28,59 @@ def get_section_data():
     
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Explicitly using indices [0, 1, 2] is safer for Web-to-Python data mapping
     cursor.execute("SELECT component_name, make, serial_number FROM Components WHERE panel_serial = ? AND section_name = ?", panel, section)
     
     data_map = {}
     for row in cursor.fetchall():
-        data_map[row.component_name] = {"make": row.make, "serial": row.serial_number}
+        data_map[row[0]] = {"make": row[1], "serial": row[2]}
     
     conn.close()
     return jsonify(data_map)
+
+@app.route('/sync_full_panel', methods=['POST'])
+def sync_full_panel():
+    data = request.json
+    panel = data['panel']
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Improved UPSERT: Updates the panel if it already exists, otherwise inserts
+        # This fixes the "Start Assembly" button if a panel was already started on another device
+        cursor.execute("""
+            IF EXISTS (SELECT 1 FROM Panels WHERE panel_serial = ?)
+            BEGIN
+                UPDATE Panels SET project_name = ?, product_type = ?, prepared_by = ?, start_date = ?, reference_document = ?, verified_by = ?, remarks = ?, status = ?
+                WHERE panel_serial = ?
+            END
+            ELSE
+            BEGIN
+                INSERT INTO Panels (panel_serial, project_name, product_type, prepared_by, start_date, reference_document, verified_by, remarks, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            END
+        """, panel['panel_serial'], panel['project_name'], panel['product_type'], panel['prepared_by'], panel['start_date'] or None, panel['reference_document'], panel['verified_by'], panel['remarks'], panel['status'], panel['panel_serial'],
+             panel['panel_serial'], panel['project_name'], panel['product_type'], panel['prepared_by'], panel['start_date'] or None, panel['reference_document'], panel['verified_by'], panel['remarks'], panel['status'])
+        
+        conn.commit()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/export_excel', methods=['GET'])
+def export_excel():
+    panel_serial = request.args.get('panel')
+    conn = get_db_connection()
+    query = "SELECT section_name, component_name, make, serial_number FROM Components WHERE panel_serial = ?"
+    df = pd.read_sql(query, conn, params=[panel_serial])
+    conn.close()
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Traceability')
+    output.seek(0)
+    
+    return send_file(output, as_attachment=True, download_name=f"Report_{panel_serial}.xlsx", mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
