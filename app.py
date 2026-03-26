@@ -157,7 +157,7 @@ def sync_full_panel():
 
     finally:
         conn.close()
-
+print("FULL REQUEST:", data)
 
 # =========================
 # 4. EXPORT EXCEL
