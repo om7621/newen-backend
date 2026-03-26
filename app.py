@@ -78,6 +78,9 @@ def get_section_data():
 @app.route('/sync_full_panel', methods=['POST'])
 def sync_full_panel():
     data = request.json
+
+    print("FULL REQUEST:", data)
+    
     panel = data.get('panel', {})
     components = data.get('components', [])
 
@@ -157,7 +160,6 @@ def sync_full_panel():
 
     finally:
         conn.close()
-print("FULL REQUEST:", data)
 
 # =========================
 # 4. EXPORT EXCEL
