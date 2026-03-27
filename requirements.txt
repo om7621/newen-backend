@@ -4,4 +4,3 @@ pyodbc
 pandas
 xlsxwriter
 gunicorn
-json
