@@ -94,21 +94,29 @@ def sync_full_panel():
 def export_full_summary():
     conn = get_db_connection()
     try:
-        # Load all panels
+        # 1. Load all panels
         panels_df = pd.read_sql("SELECT * FROM Panels", conn)
-        # Load all components
+        
+        # 2. Load all components
         components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
         
         if panels_df.empty:
-            return "No data found", 404
+            return "No data found in Panels table", 404
 
-        # Pivot components: Makes each component name a column and fills with serial number
-        pivot_df = components_df.pivot(index='panel_serial', columns='component_name', values='serial_number')
-        
-        # Merge panels with their components
-        final_df = panels_df.merge(pivot_df, on='panel_serial', how='left')
+        # --- FIX FOR DUPLICATES ---
+        # This removes duplicates by keeping only the last entry for each component per panel
+        if not components_df.empty:
+            components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
 
-        # Rename headers to match your specific requirement
+            # 3. Pivot components: Makes each component name a column
+            pivot_df = components_df.pivot(index='panel_serial', columns='component_name', values='serial_number')
+            
+            # 4. Merge panels with their components
+            final_df = panels_df.merge(pivot_df, on='panel_serial', how='left')
+        else:
+            final_df = panels_df
+
+        # --- ARRANGEMENT & CLEANING ---
         column_mapping = {
             'panel_serial': 'Panel Sr. No.',
             'start_date': 'Start Date',
@@ -120,24 +128,40 @@ def export_full_summary():
             'verified_by': 'Verified By',
             'remarks': 'Remarks'
         }
-        final_df.rename(columns=column_mapping, inplace=True)
+        
+        # Fill missing values with empty string (blank space in Excel)
+        final_df.fillna('', inplace=True)
+        
+        # Rename only columns that exist
+        existing_mapping = {k: v for k, v in column_mapping.items() if k in final_df.columns}
+        final_df.rename(columns=existing_mapping, inplace=True)
 
-        # Arrange: Metadata first, then components
-        metadata_cols = list(column_mapping.values())
-        component_cols = [c for c in final_df.columns if c not in metadata_cols and c != 'status' and c != 'id']
+        # Identify metadata columns vs component columns
+        metadata_cols = list(existing_mapping.values())
+        internal_cols = ['id', 'status', 'approved_by']
+        component_cols = [c for c in final_df.columns if c not in metadata_cols and c not in internal_cols]
+        
+        # Sort component columns alphabetically for better organization
+        component_cols.sort()
+        
+        # Final column order: Metadata first, then components
         final_df = final_df[metadata_cols + component_cols]
 
+        # 5. Generate Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             final_df.to_excel(writer, index=False, sheet_name='Master Summary')
         output.seek(0)
 
-        return send_file(output, as_attachment=True, download_name="Master_Traceability_Report.xlsx", 
-                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        return send_file(
+            output, 
+            as_attachment=True, 
+            download_name="Master_Traceability_Report.xlsx", 
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
     except Exception as e:
-        return str(e), 500
+        print(f"Export Error: {e}")
+        return f"Backend Error: {str(e)}", 500
     finally:
         conn.close()
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
