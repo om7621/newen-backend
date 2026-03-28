@@ -121,74 +121,95 @@ def sync_full_panel():
 def export_full_summary():
     conn = get_db_connection()
     try:
-        # 1. Load all panels
+        # 1. Fetch Panels
         panels_df = pd.read_sql("SELECT * FROM Panels", conn)
-        
-        # 2. Load all components
-        components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
-        
         if panels_df.empty:
-            return "No data found in Panels table", 404
+            return "No data found", 404
 
-        # --- FIX FOR DUPLICATES ---
-        # This removes duplicates by keeping only the last entry for each component per panel
+        # 2. Fetch Components with section name to handle duplicates (Skyper, IGBT, etc.)
+        components_df = pd.read_sql("SELECT panel_serial, section_name, component_name, serial_number FROM Components", conn)
+        
+        # 3. Process STACK components to make names unique (e.g., SKYPER1 -> SKYPER1-U1)
+        def rename_stack_comp(row):
+            sec = row['section_name'].upper()
+            comp = row['component_name']
+            if "STACK" in sec:
+                stack_id = sec.split(" ")[0] # Gets 'U1', 'V1', etc.
+                return f"{comp}-{stack_id}"
+            return comp
+
         if not components_df.empty:
-            components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
-
-            # 3. Pivot components: Makes each component name a column
-            pivot_df = components_df.pivot(index='panel_serial', columns='component_name', values='serial_number')
-            
-            # 4. Merge panels with their components
+            components_df['unique_name'] = components_df.apply(rename_stack_comp, axis=1)
+            # Remove any accidental duplicates
+            components_df = components_df.drop_duplicates(subset=['panel_serial', 'unique_name'], keep='last')
+            # Pivot
+            pivot_df = components_df.pivot(index='panel_serial', columns='unique_name', values='serial_number')
             final_df = panels_df.merge(pivot_df, on='panel_serial', how='left')
         else:
             final_df = panels_df
 
-        # --- ARRANGEMENT & CLEANING ---
-        column_mapping = {
+        # 4. Define EXACT column order based on your application
+        # Metadata columns
+        metadata_cols = {
             'panel_serial': 'Panel Sr. No.',
             'start_date': 'Start Date',
-            'end_date': 'End Date',
             'project_name': 'Project Name',
+            'end_date': 'End Date',
             'product_type': 'Product Type',
             'reference_document': 'W.O/S. O No',
             'prepared_by': 'Prepared By',
             'verified_by': 'Verified By',
             'remarks': 'Remarks'
         }
-        
-        # Fill missing values with empty string (blank space in Excel)
+
+        # Define the component order (Matching CPS3000Template)
+        ordered_components = [
+            "Enclosure Serial No. 1", "Enclosure Serial No. 2",
+            "Fan1", "NTC8 – Fan1 – 10K", "Fan2", "NTC10 – Fan2 – 10K",
+            "L1", "TR1", "TR2", "L2", "TR3",
+            "CB01", "CB02", "K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8",
+            "SPD3 – AC SPD", "SPD4 – AC SPD AUX", "SPD1 – DC SPD", "SPD2 – DC SPD",
+            "FU1", "FU2", "FU3", "FU4", "ETH2 – ETH SWITCH", "CBF", "CBF1", "CBF2",
+            "HCTU1", "HCTV1", "HCTW1", "HCTU2", "HCTV2", "HCTW2", "HCTU3", "HCTV3", "HCTW3", "HCTU4", "HCTV4", "HCTW4",
+            "HCTD1", "HCTD2", "NTC7 – P1 – 10K", "NTC9 – P2 – 10K", "A8-1 PT Sensing Board", "A8-2 PT Sensing Board"
+            # Add other static components here if needed...
+        ]
+
+        # Add STACK components dynamically in order (U1, V1, W1, U2, V2, W2)
+        stacks = ["U1", "V1", "W1", "U2", "V2", "W2"]
+        for s in stacks:
+            # Add the typical components for each stack with suffix
+            ordered_components.extend([
+                f"A4-{stacks.indexOf(s)*2+1}-{s}", f"A4-{stacks.indexOf(s)*2+2}-{s}", # Optional: adjust to match DB
+                f"IGBT{stacks.indexOf(s)*4+1}-{s}", f"IGBT{stacks.indexOf(s)*4+2}-{s}", 
+                f"IGBT{stacks.indexOf(s)*4+3}-{s}", f"IGBT{stacks.indexOf(s)*4+4}-{s}",
+                f"SKYPER1-{s}", f"SKYPER2-{s}", f"SKYPER3-{s}", f"SKYPER4-{s}"
+            ])
+
+        # Fill missing data with blank
         final_df.fillna('', inplace=True)
-        
-        # Rename only columns that exist
-        existing_mapping = {k: v for k, v in column_mapping.items() if k in final_df.columns}
-        final_df.rename(columns=existing_mapping, inplace=True)
+        final_df.rename(columns=metadata_cols, inplace=True)
 
-        # Identify metadata columns vs component columns
-        metadata_cols = list(existing_mapping.values())
-        internal_cols = ['id', 'status', 'approved_by']
-        component_cols = [c for c in final_df.columns if c not in metadata_cols and c not in internal_cols]
+        # 5. Filter only columns that actually exist in the final dataframe
+        final_metadata_headers = list(metadata_cols.values())
+        all_possible_cols = final_metadata_headers + ordered_components
         
-        # Sort component columns alphabetically for better organization
-        component_cols.sort()
+        # Keep only the columns we actually have
+        existing_cols = [c for c in all_possible_cols if c in final_df.columns]
         
-        # Final column order: Metadata first, then components
-        final_df = final_df[metadata_cols + component_cols]
+        # Add any unexpected columns at the end
+        extra_cols = [c for c in final_df.columns if c not in existing_cols and c not in ['id', 'status', 'approved_by']]
+        final_df = final_df[existing_cols + extra_cols]
 
-        # 5. Generate Excel
+        # 6. Generate Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             final_df.to_excel(writer, index=False, sheet_name='Master Summary')
         output.seek(0)
 
-        return send_file(
-            output, 
-            as_attachment=True, 
-            download_name="Master_Traceability_Report.xlsx", 
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
+        return send_file(output, as_attachment=True, download_name="Master_Traceability_Report.xlsx")
 
     except Exception as e:
-        print(f"Export Error: {e}")
-        return f"Backend Error: {str(e)}", 500
+        return str(e), 500
     finally:
         conn.close()
