@@ -57,34 +57,61 @@ def sync_full_panel():
     data = request.json
     panel = data.get('panel', {})
     components = data.get('components', [])
+
     conn = get_db_connection()
     cursor = conn.cursor()
+
     try:
-        # Update or Insert Panel
+        # 1. UPSERT PANEL (This part is already good)
         cursor.execute("""
             IF EXISTS (SELECT 1 FROM Panels WHERE panel_serial = ?)
             BEGIN
-                UPDATE Panels SET project_name=?, product_type=?, prepared_by=?, start_date=?, reference_document=?, verified_by=?, remarks=?, status=?
+                UPDATE Panels 
+                SET project_name = ?, product_type = ?, prepared_by = ?, 
+                    start_date = ?, reference_document = ?, verified_by = ?, 
+                    remarks = ?, status = ?
                 WHERE panel_serial = ?
             END
             ELSE
             BEGIN
-                INSERT INTO Panels (panel_serial, project_name, product_type, prepared_by, start_date, reference_document, verified_by, remarks, status)
+                INSERT INTO Panels (panel_serial, project_name, product_type, prepared_by,
+                                  start_date, reference_document, verified_by, remarks, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             END
-        """, 
-        panel.get('panel_serial'), panel.get('project_name'), panel.get('product_type'), panel.get('prepared_by'), panel.get('start_date'), panel.get('reference_document'), panel.get('verified_by'), panel.get('remarks'), panel.get('status'), panel.get('panel_serial'),
-        panel.get('panel_serial'), panel.get('project_name'), panel.get('product_type'), panel.get('prepared_by'), panel.get('start_date'), panel.get('reference_document'), panel.get('verified_by'), panel.get('remarks'), panel.get('status'))
+        """,
+        panel.get('panel_serial'), panel.get('project_name'), panel.get('product_type'),
+        panel.get('prepared_by'), panel.get('start_date'), panel.get('reference_document'),
+        panel.get('verified_by'), panel.get('remarks'), panel.get('status'), panel.get('panel_serial'),
+        panel.get('panel_serial'), panel.get('project_name'), panel.get('product_type'),
+        panel.get('prepared_by'), panel.get('start_date'), panel.get('reference_document'),
+        panel.get('verified_by'), panel.get('remarks'), panel.get('status'))
 
-        # Sync Components (Delete old, Insert new to keep it clean)
-        cursor.execute("DELETE FROM Components WHERE panel_serial = ?", panel.get('panel_serial'))
+        # 2. SMART COMPONENT SYNC (UPSERT instead of DELETE ALL)
         for comp in components:
-            cursor.execute("INSERT INTO Components (panel_serial, section_name, component_name, make, serial_number) VALUES (?, ?, ?, ?, ?)",
-                         panel.get('panel_serial'), comp.get('section_name'), comp.get('component_name'), comp.get('make'), comp.get('serial_number'))
-        
+            cursor.execute("""
+                IF EXISTS (SELECT 1 FROM Components WHERE panel_serial = ? AND component_name = ?)
+                BEGIN
+                    UPDATE Components 
+                    SET section_name = ?, make = ?, serial_number = ?
+                    WHERE panel_serial = ? AND component_name = ?
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO Components (panel_serial, section_name, component_name, make, serial_number)
+                    VALUES (?, ?, ?, ?, ?)
+                END
+            """,
+            panel.get('panel_serial'), comp.get('component_name'),
+            comp.get('section_name'), comp.get('make'), comp.get('serial_number'),
+            panel.get('panel_serial'), comp.get('component_name'),
+            panel.get('panel_serial'), comp.get('section_name'), comp.get('component_name'), 
+            comp.get('make'), comp.get('serial_number'))
+
         conn.commit()
         return jsonify({"status": "success"})
+
     except Exception as e:
+        print("ERROR:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
         conn.close()
