@@ -126,13 +126,13 @@ def export_full_summary():
         if panels_df.empty:
             return "No data found", 404
 
-        # 2. Fetch Components with section name to handle duplicates (Skyper, IGBT, etc.)
+        # 2. Fetch Components
         components_df = pd.read_sql("SELECT panel_serial, section_name, component_name, serial_number FROM Components", conn)
         
-        # 3. Process STACK components to make names unique (e.g., SKYPER1 -> SKYPER1-U1)
+        # 3. Process STACK components to make names unique
         def rename_stack_comp(row):
-            sec = row['section_name'].upper()
-            comp = row['component_name']
+            sec = str(row['section_name']).upper()
+            comp = str(row['component_name'])
             if "STACK" in sec:
                 stack_id = sec.split(" ")[0] # Gets 'U1', 'V1', etc.
                 return f"{comp}-{stack_id}"
@@ -140,16 +140,13 @@ def export_full_summary():
 
         if not components_df.empty:
             components_df['unique_name'] = components_df.apply(rename_stack_comp, axis=1)
-            # Remove any accidental duplicates
             components_df = components_df.drop_duplicates(subset=['panel_serial', 'unique_name'], keep='last')
-            # Pivot
             pivot_df = components_df.pivot(index='panel_serial', columns='unique_name', values='serial_number')
             final_df = panels_df.merge(pivot_df, on='panel_serial', how='left')
         else:
             final_df = panels_df
 
-        # 4. Define EXACT column order based on your application
-        # Metadata columns
+        # 4. Define EXACT column order
         metadata_cols = {
             'panel_serial': 'Panel Sr. No.',
             'start_date': 'Start Date',
@@ -162,7 +159,6 @@ def export_full_summary():
             'remarks': 'Remarks'
         }
 
-        # Define the component order (Matching CPS3000Template)
         ordered_components = [
             "Enclosure Serial No. 1", "Enclosure Serial No. 2",
             "Fan1", "NTC8 – Fan1 – 10K", "Fan2", "NTC10 – Fan2 – 10K",
@@ -172,36 +168,36 @@ def export_full_summary():
             "FU1", "FU2", "FU3", "FU4", "ETH2 – ETH SWITCH", "CBF", "CBF1", "CBF2",
             "HCTU1", "HCTV1", "HCTW1", "HCTU2", "HCTV2", "HCTW2", "HCTU3", "HCTV3", "HCTW3", "HCTU4", "HCTV4", "HCTW4",
             "HCTD1", "HCTD2", "NTC7 – P1 – 10K", "NTC9 – P2 – 10K", "A8-1 PT Sensing Board", "A8-2 PT Sensing Board"
-            # Add other static components here if needed...
         ]
 
-        # Add STACK components dynamically in order (U1, V1, W1, U2, V2, W2)
+        # Add STACK components dynamically (U1, V1, W1, U2, V2, W2)
         stacks = ["U1", "V1", "W1", "U2", "V2", "W2"]
-        for s in stacks:
-            # Add the typical components for each stack with suffix
+        for i, s in enumerate(stacks):
+            # Matches your CPS3000Template numbering logic
             ordered_components.extend([
-                f"A4-{stacks.indexOf(s)*2+1}-{s}", f"A4-{stacks.indexOf(s)*2+2}-{s}", # Optional: adjust to match DB
-                f"IGBT{stacks.indexOf(s)*4+1}-{s}", f"IGBT{stacks.indexOf(s)*4+2}-{s}", 
-                f"IGBT{stacks.indexOf(s)*4+3}-{s}", f"IGBT{stacks.indexOf(s)*4+4}-{s}",
+                f"A4-{i*2+1}-{s}", f"A4-{i*2+2}-{s}",
+                f"IGBT{i*4+1}-{s}", f"IGBT{i*4+2}-{s}", 
+                f"IGBT{i*4+3}-{s}", f"IGBT{i*4+4}-{s}",
+                f"TS{i*2+1} – 120°C-{s}", f"TS{i*2+2} – 120°C-{s}",
+                f"CD{i*8+1}-{i*8+8}-{s}" if i < 5 else f"CD41-48-{s}", # Handles your capacitor naming
+                f"NTC{i+1} – 10K-{s}",
                 f"SKYPER1-{s}", f"SKYPER2-{s}", f"SKYPER3-{s}", f"SKYPER4-{s}"
             ])
 
-        # Fill missing data with blank
+        # Rename and Clean
         final_df.fillna('', inplace=True)
         final_df.rename(columns=metadata_cols, inplace=True)
 
-        # 5. Filter only columns that actually exist in the final dataframe
-        final_metadata_headers = list(metadata_cols.values())
-        all_possible_cols = final_metadata_headers + ordered_components
+        # Build final column list based on what actually exists
+        header_list = list(metadata_cols.values())
+        all_possible_cols = header_list + ordered_components
         
-        # Keep only the columns we actually have
         existing_cols = [c for c in all_possible_cols if c in final_df.columns]
-        
-        # Add any unexpected columns at the end
         extra_cols = [c for c in final_df.columns if c not in existing_cols and c not in ['id', 'status', 'approved_by']]
+        
         final_df = final_df[existing_cols + extra_cols]
 
-        # 6. Generate Excel
+        # 5. Generate Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             final_df.to_excel(writer, index=False, sheet_name='Master Summary')
@@ -210,6 +206,7 @@ def export_full_summary():
         return send_file(output, as_attachment=True, download_name="Master_Traceability_Report.xlsx")
 
     except Exception as e:
+        print(f"ERROR: {e}")
         return str(e), 500
     finally:
         conn.close()
