@@ -51,7 +51,7 @@ def get_section_data():
     conn.close()
     return jsonify(data_map)
 
-# 3. FULL PANEL SYNC (Corrected with Component Logic)
+# 3. FULL PANEL SYNC
 @app.route('/sync_full_panel', methods=['POST'])
 def sync_full_panel():
     data = request.json
@@ -83,7 +83,7 @@ def sync_full_panel():
         panel.get('panel_serial'), panel.get('project_name'), panel.get('product_type'), panel.get('prepared_by'), start_date, 
         panel.get('reference_document'), panel.get('verified_by'), panel.get('remarks'), panel.get('status', 'IN_PROGRESS'))
 
-        # --- UPSERT COMPONENTS (Fixed: This was missing in your snippet) ---
+        # --- UPSERT COMPONENTS ---
         for comp in components:
             cursor.execute("""
                 IF EXISTS (SELECT 1 FROM Components WHERE panel_serial = ? AND component_name = ?)
@@ -110,19 +110,20 @@ def sync_full_panel():
     finally:
         conn.close()
 
-# 4. EXPORT MASTER EXCEL (Corrected Order and Unique Names)
+# 4. EXPORT MASTER EXCEL (Separate for CPS and DPS)
 @app.route('/export_full_summary', methods=['GET'])
 def export_full_summary():
+    product_type = request.args.get('product_type', 'CPS3000')
     conn = get_db_connection()
     try:
-        panels_df = pd.read_sql("SELECT * FROM Panels", conn)
+        # Fetch panels only for this product type
+        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = ?", conn, params=[product_type])
         components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
         
         if panels_df.empty:
-            return "No data found", 404
+            return f"No {product_type} data found", 404
 
         if not components_df.empty:
-            # Pivot directly (Skyper names are already unique from the app side now)
             components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
             pivot_df = components_df.pivot(index='panel_serial', columns='component_name', values='serial_number')
             final_df = panels_df.merge(pivot_df, on='panel_serial', how='left')
@@ -142,23 +143,27 @@ def export_full_summary():
         }
 
         final_df.fillna('', inplace=True)
-        final_df.rename(columns=column_mapping, inplace=True)
+        
+        # SAFE RENAME: Only map keys that actually exist in the DB to avoid 'not in index' error
+        existing_mapping = {k: v for k, v in column_mapping.items() if k in final_df.columns}
+        final_df.rename(columns=existing_mapping, inplace=True)
 
-        # Sort columns: Metadata first, then component columns alphabetically
-        meta_cols = list(column_mapping.values())
-        comp_cols = [c for c in final_df.columns if c not in meta_cols and c not in ['id', 'status', 'approved_by']]
+        # Arrange columns: Metadata headers first, then all components alphabetically
+        meta_headers = list(existing_mapping.values())
+        comp_cols = [c for c in final_df.columns if c not in meta_headers and c not in ['id', 'status', 'approved_by']]
         comp_cols.sort()
         
-        final_df = final_df[meta_cols + comp_cols]
+        final_df = final_df[meta_headers + comp_cols]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            final_df.to_excel(writer, index=False, sheet_name='Master Summary')
+            final_df.to_excel(writer, index=False, sheet_name=f'{product_type} Master List')
         output.seek(0)
 
-        return send_file(output, as_attachment=True, download_name="Master_Traceability_Report.xlsx")
+        return send_file(output, as_attachment=True, download_name=f"Master_{product_type}_Report.xlsx")
 
     except Exception as e:
+        print(f"EXPORT ERROR: {e}")
         return str(e), 500
     finally:
         conn.close()
