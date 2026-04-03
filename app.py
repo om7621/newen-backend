@@ -90,7 +90,7 @@ def sync_full_panel():
                 ELSE
                 BEGIN
                     INSERT INTO Components (panel_serial, section_name, component_name, make, serial_number)
-                    VALUES (?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, GETDATE())
                 END
             """, panel.get('panel_serial'), comp.get('component_name'), comp.get('section_name'), comp.get('make'), comp.get('serial_number'),
                  panel.get('panel_serial'), comp.get('component_name'),
@@ -101,13 +101,17 @@ def sync_full_panel():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ========================================================
+# 4. EXPORT SINGLE PANEL EXCEL (Vertical Report Format)
+# ========================================================
 @app.route('/export_excel', methods=['GET'])
 def export_excel():
     panel_serial = unquote(request.args.get('panel', ''))
     try:
         conn = get_db_connection()
         panel_df = pd.read_sql("SELECT * FROM Panels WHERE panel_serial = ?", conn, params=[panel_serial])
-        # REMOVED 'time' column to fix crash
+        
+        # REMOVED 'time' from here to fix the crash
         comp_df = pd.read_sql("SELECT section_name, component_name, make, serial_number FROM Components WHERE panel_serial = ?", conn, params=[panel_serial])
         conn.close()
 
@@ -117,6 +121,11 @@ def export_excel():
         panel_data = panel_df.iloc[0]
         output = io.BytesIO()
         
+        # Sorting logic...
+        order = ["Enclosure", "Fan Box", "Magnetics", "Switchgears", "Sensors", "Resistors", "PCB", "Filter", "Capacitor", "Stack-1", "Stack-2", "Stack-3", "Stack-4", "Power Supply", "U1 STACK", "V1 STACK", "W1 STACK", "U2 STACK", "V2 STACK", "W2 STACK"]
+        comp_df['section_order'] = comp_df['section_name'].apply(lambda x: order.index(x) if x in order else 99)
+        comp_df = comp_df.sort_values(by=['section_order', 'component_name'])
+
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             workbook = writer.book
             sheet = workbook.add_worksheet('Traceability')
@@ -138,6 +147,7 @@ def export_excel():
             sheet.write(9, 0, "Remarks")
             sheet.write(9, 1, panel_data.get('remarks', ''))
 
+            # Headers (REMOVED 'Time')
             headers = ["Section", "Component", "Make", "Serial"]
             for col, header in enumerate(headers):
                 sheet.write(11, col, header, header_format)
@@ -160,32 +170,89 @@ def export_full_summary():
     product_type = request.args.get('product_type', 'CPS3000')
     conn = get_db_connection()
     try:
+        # 1. Fetch data
         panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = ?", conn, params=[product_type])
         components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
-        if panels_df.empty: return f"No {product_type} data found", 404
+        
+        if panels_df.empty:
+            return f"No {product_type} data found", 404
+
+        # 2. Pivot components
         if not components_df.empty:
             components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
             pivot_df = components_df.pivot(index='panel_serial', columns='component_name', values='serial_number')
             final_df = panels_df.merge(pivot_df, on='panel_serial', how='left')
         else:
             final_df = panels_df
-        column_mapping = {'panel_serial': 'Panel Sr. No.', 'start_date': 'Start Date', 'project_name': 'Project Name', 'end_date': 'End Date', 'product_type': 'Product Type', 'reference_document': 'W.O/S. O No', 'prepared_by': 'Prepared By', 'verified_by': 'Verified By', 'remarks': 'Remarks'}
+
+        # 3. Define Metadata Header Mapping
+        column_mapping = {
+            'panel_serial': 'Panel Sr. No.',
+            'start_date': 'Start Date',
+            'project_name': 'Project Name',
+            'end_date': 'End Date',
+            'product_type': 'Product Type',
+            'reference_document': 'W.O/S. O No',
+            'prepared_by': 'Prepared By',
+            'verified_by': 'Verified By',
+            'remarks': 'Remarks'
+        }
+
+        # --- CUSTOM COMPONENT SORTING LIST (MATCHING YOUR APP) ---
+        # This list defines the EXACT order of columns in Excel
+        app_order = [
+            # Enclosure
+            "Enclosure Serial No. 1", "Enclosure Serial No. 2", "Enclosure Serial No / Rev No",
+            # Fan Box
+            "Fan1", "NTC8 – Fan1 – 10K", "Fan2", "NTC10 – Fan2 – 10K", "Pan1", "NTC8 – Fan – 10K",
+            # Magnetics
+            "L1", "TR1", "TR2", "L2", "TR3", "L1 (480uH/633A) - 1", "L1 (480uH/633A) - 2", "TV",
+            # Switchgears
+            "CB01", "CB02", "K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8",
+            "T1A", "T1B", "T2A", "T2B", "T3A", "T6A", "T6B", "T3", "T4", "T5", "T7", "T8",
+            "SPD3 – AC SPD", "SPD4 – AC SPD AUX", "SPD1 – DC SPD", "SPD2 – DC SPD",
+            "FU1", "FU2", "FU3", "FU4", "FU1 (1500VDC)", "FU2 (1500VDC)", "FU4 (1250A 1500VDC)", "FU8 (1250A 1500VDC)",
+            "ETH2 – ETH SWITCH", "QF1", "CBF", "CBF1", "CBF2",
+            # Sensors
+            "HCTU1", "HCTV1", "HCTW1", "HCTU2", "HCTV2", "HCTW2", "HCTU3", "HCTV3", "HCTW3", "HCTU4", "HCTV4", "HCTW4",
+            "HCTD1", "HCTD2", "HALL1", "HALL2", "HALL3", "HALL4", "HALL5", "NTC7 – P1 – 10K", "NTC9 – P2 – 10K",
+            "A8-1 PT Sensing Board", "A8-2 PT Sensing Board",
+            # PCB
+            "A2-1 Interface Card", "A3-1 Controller Card", "A12 AC Filter Card", "A13-1 DC Filter", "A1 Domain Controller",
+            "Controller (NI Board)", "DPS A1 - Interface Board", "DPS A2 - Power Supply Board - 24VDC", "DPS A3 - Power Supply Board - 15VDC",
+            # Stack Data (Unique Names)
+            "SKYPER1-U1", "SKYPER2-U1", "SKYPER3-U1", "SKYPER4-U1",
+            "SKYPER1-V1", "SKYPER2-V1", "SKYPER3-V1", "SKYPER4-V1",
+            "SKYPER1-W1", "SKYPER2-W1", "SKYPER3-W1", "SKYPER4-W1",
+            "SKYPER 1-S1", "SKYPER 2-S2", "SKYPER 3-S3", "SKYPER 4-S4"
+        ]
+
         final_df.fillna('', inplace=True)
+        
+        # 4. Safe Rename
         existing_mapping = {k: v for k, v in column_mapping.items() if k in final_df.columns}
         final_df.rename(columns=existing_mapping, inplace=True)
+
+        # 5. FINAL ARRANGE: Metadata first, then components in the specific APP order
         meta_headers = list(existing_mapping.values())
-        comp_cols = [c for c in final_df.columns if c not in meta_headers and c not in ['id', 'status', 'approved_by', 'end_date']]
-        comp_cols.sort()
-        final_df = final_df[meta_headers + comp_cols]
+        
+        # Filter app_order to only include components that are actually in this panel's data
+        ordered_comp_cols = [c for c in app_order if c in final_df.columns]
+        
+        # Catch any components that might be in DB but missing from our order list
+        extra_cols = [c for c in final_df.columns if c not in meta_headers and c not in ordered_comp_cols and c not in ['id', 'status', 'approved_by']]
+        
+        # Reconstruct with strict order
+        final_df = final_df[meta_headers + ordered_comp_cols + extra_cols]
+
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            final_df.to_excel(writer, index=False, sheet_name='Master Summary')
+            final_df.to_excel(writer, index=False, sheet_name=f'{product_type} Summary')
         output.seek(0)
+
         return send_file(output, as_attachment=True, download_name=f"Master_{product_type}_Report.xlsx")
+
     except Exception as e:
         return str(e), 500
     finally:
         conn.close()
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
