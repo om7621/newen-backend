@@ -301,7 +301,7 @@ def export_dps_summary():
             "(IGBT) Q1-A",
             "(IGBT) Q1-B",
             "(IGBT) Q1-C",
-            "SKYPER 1-S1",
+            "SKYPER 1",
             #STACK2
             "DPS IGBT Adaptor Board A9A-S2",
             "DPS IGBT Adaptor Board A9B-S2",
@@ -309,7 +309,7 @@ def export_dps_summary():
             "(IGBT) Q2-A",
             "(IGBT) Q2-B",
             "(IGBT) Q2-C",
-            "SKYPER 2-S2",
+            "SKYPER 2",
             #STACK3
             "DPS IGBT Adaptor Board A10A-S3",
             "DPS IGBT Adaptor Board A10B-S3",
@@ -317,7 +317,7 @@ def export_dps_summary():
             "(IGBT) Q3-A",
             "(IGBT) Q3-B",
             "(IGBT) Q3-C",
-            "SKYPER 3-S3",
+            "SKYPER 3",
             #STACK4
             "DPS IGBT Adaptor Board A11A-S4",
             "DPS IGBT Adaptor Board A11B-S4",
@@ -325,7 +325,7 @@ def export_dps_summary():
             "(IGBT) Q4-A",
             "(IGBT) Q4-B",
             "(IGBT) Q4-C",
-            "SKYPER 4-S4",
+            "SKYPER 4",
 
         ]
 
