@@ -201,6 +201,20 @@ def export_cps_summary():
             "FU1", "FU2", "FU3", "FU4", "ETH2 – ETH SWITCH", "CBF", "CBF1", "CBF2",
             "HCTU1", "HCTV1", "HCTW1", "HCTU2", "HCTV2", "HCTW2", "HCTU3", "HCTV3", "HCTW3", "HCTU4", "HCTV4", "HCTW4",
             "HCTD1", "HCTD2", "NTC7 – P1 – 10K", "NTC9 – P2 – 10K", "A8-1 PT Sensing Board", "A8-2 PT Sensing Board",
+            "RA18 – 66KΩ 100W", "RA19 – 66KΩ 100W", "RA20 – 66KΩ 100W", "RA1 – 80E 500W", "RA2 – 80E 500W", "RA3 – 33KΩ 100W", "RA4 – 33KΩ 100W", "RA5 – 33KΩ 100W", "RA6 – 33KΩ 100W", "RA15 – 66KΩ 100W", "RA16 – 66KΩ 100W", "RA17 – 66KΩ 100W",
+            #PCB
+            "A2-1 Interface Card", "A3-1 Controller Card", "A6-1 CB Card 1", "A7-1 Gate Interlock Card", "A7-2 Gate Interlock Card", "A7-3 Gate Interlock Card", "A12 AC Filter Card", "A13-1 DC Filter", "A1 Domain Controller", "A2-2 Interface Card",
+            "A3-2 Controller Card", "A3-3 Controller Card", "A5 Power Supply ORing Card", "A5-1 Power Supply ORing Card", "A6-2 CB Card 2", "A7-4 Gate Interlock Card", "A7-5 Gate Interlock Card", "A7-6 Gate Interlock Card", "A10 SIM100", "A11 Data Logger",
+            "A13-2 DC Filter",
+            #CAPACITORS
+            "Cap Bank CF1", "Cap Bank CF2", "Cap Bank CF3", "Cap Bank CF4", "Cap Bank CF5", "Cap Bank CF6",
+            # POWER SUPPLY
+            "PS1 – 24V", "PS2 – 24V", "PS3 – 24V", "PS4 – 15V", "PS5 – 12V", "PS6 – 24V", "PS7 – 15V", "PS8 – +/-12V", "PS9 – 24V", "PS10 – 15V", "HMI",
+            
+
+            
+
+
             "SKYPER1-U1", "SKYPER2-U1", "SKYPER3-U1", "SKYPER4-U1",
             "SKYPER1-V1", "SKYPER2-V1", "SKYPER3-V1", "SKYPER4-V1",
             "SKYPER1-W1", "SKYPER2-W1", "SKYPER3-W1", "SKYPER4-W1",
