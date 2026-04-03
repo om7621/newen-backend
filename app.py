@@ -282,18 +282,15 @@ def export_dps_summary():
             "RS1 (HEATER)", "HU1 (HUMIDISTAT)", "KT1", "KT2", "KT3", "KT4", "KT5", "KT6", "KT7", "KT8", "KT9", 
             #Resistors
             "R1-R2 100E/150W", "R3-R14 7.5K/60W", "R15-10E/2W", "R16-100E/150W", "R17-100E/150W",
-
-            #PCB DPS-X
+            #PCB DPS
             "Controller (NI Board)", "DPS A1 - Interface Board", "DPS A2 - Power Supply Board - 24VDC", "DPS A3 - Power Supply Board - 15VDC", "DPS A3-1 Power Supply Board - 15VDC", "DPS IGBT Driver Board A4",
             "DPS IGBT Driver Board A5", "DPS IGBT Driver Board A6", "DPS IGBT Driver Board A7", "DPS A12 Fan Controller Board",
             "DPS A13 Signal Detection and Power Transfer Board", "DPS A14 Contactor Power Board",
-
-            #FILTER DPS-X
+            #FILTER DPS
             "DPS Filter Board FL1", "DPS Filter Board FL2", "DPS Filter Board FL3", "DPS Filter Board FL4", "FILTER-5",
-            # CAPACITORS DPS-1000
+            # CAPACITORS DPS
             "C1-C12", "C13-C24",
-            
-            #IGBT ASSEMBLY DPS-1000
+            #IGBT ASSEMBLY DPS
             #STACK1
             "DPS IGBT Adaptor Board A8A-S1",
             "DPS IGBT Adaptor Board A8B-S1",
