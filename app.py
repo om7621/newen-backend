@@ -166,16 +166,17 @@ def export_excel():
     except Exception as e:
         return str(e), 500
 
-# 5. EXPORT MASTER EXCEL (Separate for CPS and DPS)
-@app.route('/export_full_summary', methods=['GET'])
-def export_full_summary():
-    product_type = request.args.get('product_type', 'CPS3000')
+# ========================================================
+# 5. EXPORT CPS3000 MASTER EXCEL
+# ========================================================
+@app.route('/export_cps_summary', methods=['GET'])
+def export_cps_summary():
     conn = get_db_connection()
     try:
-        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = ?", conn, params=[product_type])
+        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = 'CPS3000'", conn)
         components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
         
-        if panels_df.empty: return "No data", 404
+        if panels_df.empty: return "No CPS3000 data found", 404
 
         if not components_df.empty:
             components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
@@ -190,19 +191,22 @@ def export_full_summary():
             'prepared_by': 'Prepared By', 'verified_by': 'Verified By', 'remarks': 'Remarks'
         }
 
-        # Custom Order matching your application workflow
-        app_order = [
-            "Enclosure Serial No. 1", "Enclosure Serial No. 2", "Enclosure Serial No / Rev No",
-            "Fan1", "NTC8 – Fan1 – 10K", "Fan2", "NTC10 – Fan2 – 10K", "Pan1", "NTC8 – Fan – 10K",
-            "L1", "TR1", "TR2", "L2", "TR3", "L1 (480uH/633A) - 1", "L1 (480uH/633A) - 2", "TV",
+        # STRICT ORDER FOR CPS3000
+        cps_order = [
+            "Enclosure Serial No. 1", "Enclosure Serial No. 2",
+            "Fan1", "NTC8 – Fan1 – 10K", "Fan2", "NTC10 – Fan2 – 10K",
+            "L1", "TR1", "TR2", "L2", "TR3",
             "CB01", "CB02", "K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8",
-            "T1A", "T1B", "T2A", "T2B", "T3A", "T6A", "T6B", "T3", "T4", "T5", "T7", "T8",
             "SPD3 – AC SPD", "SPD4 – AC SPD AUX", "SPD1 – DC SPD", "SPD2 – DC SPD",
-            "FU1", "FU2", "FU3", "FU4", "FU1 (1500VDC)", "FU2 (1500VDC)", "FU4 (1250A 1500VDC)", "FU8 (1250A 1500VDC)",
-            "ETH2 – ETH SWITCH", "QF1", "CBF", "CBF1", "CBF2", "HCTU1", "HCTV1", "HCTW1", "HCTU2", "HCTV2", "HCTW2",
-            "HCTU3", "HCTV3", "HCTW3", "HCTU4", "HCTV4", "HCTW4", "HCTD1", "HCTD2", "HALL1", "HALL2", "HALL3", "HALL4", "HALL5",
-            "SKYPER1-U1", "SKYPER2-U1", "SKYPER3-U1", "SKYPER4-U1", "SKYPER1-V1", "SKYPER2-V1", "SKYPER3-V1", "SKYPER4-V1",
-            "SKYPER1-W1", "SKYPER2-W1", "SKYPER3-W1", "SKYPER4-W1", "SKYPER 1-S1", "SKYPER 2-S2", "SKYPER 3-S3", "SKYPER 4-S4"
+            "FU1", "FU2", "FU3", "FU4", "ETH2 – ETH SWITCH", "CBF", "CBF1", "CBF2",
+            "HCTU1", "HCTV1", "HCTW1", "HCTU2", "HCTV2", "HCTW2", "HCTU3", "HCTV3", "HCTW3", "HCTU4", "HCTV4", "HCTW4",
+            "HCTD1", "HCTD2", "NTC7 – P1 – 10K", "NTC9 – P2 – 10K", "A8-1 PT Sensing Board", "A8-2 PT Sensing Board",
+            "SKYPER1-U1", "SKYPER2-U1", "SKYPER3-U1", "SKYPER4-U1",
+            "SKYPER1-V1", "SKYPER2-V1", "SKYPER3-V1", "SKYPER4-V1",
+            "SKYPER1-W1", "SKYPER2-W1", "SKYPER3-W1", "SKYPER4-W1",
+            "SKYPER1-U2", "SKYPER2-U2", "SKYPER3-U2", "SKYPER4-U2",
+            "SKYPER1-V2", "SKYPER2-V2", "SKYPER3-V2", "SKYPER4-V2",
+            "SKYPER1-W2", "SKYPER2-W2", "SKYPER3-W2", "SKYPER4-W2"
         ]
 
         final_df.fillna('', inplace=True)
@@ -210,20 +214,74 @@ def export_full_summary():
         final_df.rename(columns=existing_rename, inplace=True)
 
         meta_headers = list(existing_rename.values())
-        comp_cols = [c for c in app_order if c in final_df.columns]
-        extra_cols = [c for c in final_df.columns if c not in meta_headers and c not in comp_cols and c not in ['id', 'status', 'approved_by', 'end_date']]
+        comp_cols = [c for c in cps_order if c in final_df.columns]
         
-        final_df = final_df[meta_headers + comp_cols + extra_cols]
+        final_df = final_df[meta_headers + comp_cols]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            final_df.to_excel(writer, index=False, sheet_name='Summary')
+            final_df.to_excel(writer, index=False, sheet_name='CPS3000 Summary')
         output.seek(0)
-        return send_file(output, as_attachment=True, download_name=f"Master_{product_type}_Report.xlsx")
+        return send_file(output, as_attachment=True, download_name="Master_CPS3000_Report.xlsx")
     except Exception as e:
         return str(e), 500
     finally:
         conn.close()
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+# ========================================================
+# 6. EXPORT DPS MASTER EXCEL
+# ========================================================
+@app.route('/export_dps_summary', methods=['GET'])
+def export_dps_summary():
+    conn = get_db_connection()
+    try:
+        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = 'DPS'", conn)
+        components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
+        
+        if panels_df.empty: return "No DPS data found", 404
+
+        if not components_df.empty:
+            components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
+            pivot_df = components_df.pivot(index='panel_serial', columns='component_name', values='serial_number')
+            final_df = panels_df.merge(pivot_df, on='panel_serial', how='left')
+        else:
+            final_df = panels_df
+
+        column_mapping = {
+            'panel_serial': 'Panel Sr. No.', 'start_date': 'Start Date', 'project_name': 'Project Name',
+            'product_type': 'Product Type', 'reference_document': 'W.O/S. O No',
+            'prepared_by': 'Prepared By', 'verified_by': 'Verified By', 'remarks': 'Remarks'
+        }
+
+        # STRICT ORDER FOR DPS
+        dps_order = [
+            "Enclosure Serial No / Rev No",
+            "Fan1", "NTC8 – Fan1 – 10K",
+            "L1 (480uH/633A) - 1", "L1 (480uH/633A) - 2", "TV",
+            "T1A", "T1B", "T2A", "T2B", "T3A", "T6A", "T6B", "T3", "T4", "T5", "T7", "T8", 
+            "FU1 (1500VDC)", "FU2 (1500VDC)", "FU4 (1250A 1500VDC)", "FU8 (1250A 1500VDC)", 
+            "ETH2 – ETH SWITCH", "QF1",
+            "HALL1", "HALL2", "HALL3", "HALL4", "HALL5",
+            "RS1 (HEATER)", "HU1 (HUMIDISTAT)", "KT1", "KT2", "KT3", "KT4", "KT5", "KT6", "KT7", "KT8", "KT9", 
+            "R1-R2 100E/150W", "R3-R14 7.5K/60W", "R15-10E/2W", "R16-100E/150W", "R17-100E/150W",
+            "SKYPER 1-S1", "SKYPER 2-S2", "SKYPER 3-S3", "SKYPER 4-S4"
+        ]
+
+        final_df.fillna('', inplace=True)
+        existing_rename = {k: v for k, v in column_mapping.items() if k in final_df.columns}
+        final_df.rename(columns=existing_rename, inplace=True)
+
+        meta_headers = list(existing_rename.values())
+        comp_cols = [c for c in dps_order if c in final_df.columns]
+        
+        final_df = final_df[meta_headers + comp_cols]
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            final_df.to_excel(writer, index=False, sheet_name='DPS Summary')
+        output.seek(0)
+        return send_file(output, as_attachment=True, download_name="Master_DPS_Report.xlsx")
+    except Exception as e:
+        return str(e), 500
+    finally:
+        conn.close()
