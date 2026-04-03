@@ -3,6 +3,7 @@ from flask_cors import CORS
 import pyodbc
 import pandas as pd
 import io
+from urllib.parse import unquote# Added for handling spaces in URLs
 
 app = Flask(__name__)
 CORS(app)  # Critical for Flutter Web App support
@@ -31,7 +32,8 @@ def home():
 def get_panels():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT panel_serial, project_name, product_type FROM Panels ORDER BY panel_serial DESC")
+    # Ordered by ID DESC so newest panels appear at the top
+    cursor.execute("SELECT panel_serial, project_name, product_type FROM Panels ORDER BY id DESC")
     columns = [column[0] for column in cursor.description]
     results = [dict(zip(columns, row)) for row in cursor.fetchall()]
     conn.close()
@@ -40,8 +42,8 @@ def get_panels():
 # 2. GET SECTION DATA
 @app.route('/get_section_data', methods=['GET'])
 def get_section_data():
-    panel = request.args.get('panel')
-    section = request.args.get('section')
+    panel = unquote(request.args.get('panel', ''))
+    section = unquote(request.args.get('section', ''))
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT component_name, make, serial_number FROM Components WHERE panel_serial = ? AND section_name = ?", panel, section)
@@ -51,7 +53,7 @@ def get_section_data():
     conn.close()
     return jsonify(data_map)
 
-# 3. FULL PANEL SYNC
+# 3. FULL PANEL SYNC (UPSERT)
 @app.route('/sync_full_panel', methods=['POST'])
 def sync_full_panel():
     data = request.json
@@ -110,13 +112,39 @@ def sync_full_panel():
     finally:
         conn.close()
 
-# 4. EXPORT MASTER EXCEL (Separate for CPS and DPS)
+# 4. EXPORT SINGLE PANEL EXCEL
+@app.route('/export_excel', methods=['GET'])
+def export_excel():
+    panel_serial = unquote(request.args.get('panel', ''))
+    conn = get_db_connection()
+    try:
+        query = """
+            SELECT section_name as Section, component_name as Component, 
+                   make as Make, serial_number as Serial 
+            FROM Components WHERE panel_serial = ?
+        """
+        df = pd.read_sql(query, conn, params=[panel_serial])
+        
+        if df.empty:
+            return f"No data found for panel: {panel_serial}", 404
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Panel Report')
+        output.seek(0)
+
+        return send_file(output, as_attachment=True, download_name=f"Report_{panel_serial}.xlsx")
+    except Exception as e:
+        return str(e), 500
+    finally:
+        conn.close()
+
+# 5. EXPORT MASTER EXCEL
 @app.route('/export_full_summary', methods=['GET'])
 def export_full_summary():
     product_type = request.args.get('product_type', 'CPS3000')
     conn = get_db_connection()
     try:
-        # Fetch panels only for this product type
         panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = ?", conn, params=[product_type])
         components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
         
@@ -144,11 +172,10 @@ def export_full_summary():
 
         final_df.fillna('', inplace=True)
         
-        # SAFE RENAME: Only map keys that actually exist in the DB to avoid 'not in index' error
+        # Only map keys that exist to prevent 'not in index' error
         existing_mapping = {k: v for k, v in column_mapping.items() if k in final_df.columns}
         final_df.rename(columns=existing_mapping, inplace=True)
 
-        # Arrange columns: Metadata headers first, then all components alphabetically
         meta_headers = list(existing_mapping.values())
         comp_cols = [c for c in final_df.columns if c not in meta_headers and c not in ['id', 'status', 'approved_by']]
         comp_cols.sort()
@@ -163,7 +190,6 @@ def export_full_summary():
         return send_file(output, as_attachment=True, download_name=f"Master_{product_type}_Report.xlsx")
 
     except Exception as e:
-        print(f"EXPORT ERROR: {e}")
         return str(e), 500
     finally:
         conn.close()
