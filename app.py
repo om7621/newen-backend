@@ -303,3 +303,74 @@ def export_dps_summary():
         return str(e), 500
     finally:
         conn.close()
+        
+# ========================================================
+# 7. EXPORT DPS 2500 MASTER EXCEL (Complete Ordered List)
+# ========================================================
+@app.route('/export_dps2500_summary', methods=['GET'])
+def export_dps2500_summary():
+    conn = get_db_connection()
+    try:
+        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = 'DPS 2500'", conn)
+        components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
+        
+        if panels_df.empty: return "No DPS 2500 data found", 404
+
+        if not components_df.empty:
+            components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
+            pivot_df = components_df.pivot(index='panel_serial', columns='component_name', values='serial_number')
+            final_df = panels_df.merge(pivot_df, on='panel_serial', how='left')
+        else:
+            final_df = panels_df
+
+        column_mapping = {
+            'panel_serial': 'Panel Sr. No.', 'start_date': 'Start Date', 'project_name': 'Project Name',
+            'product_type': 'Product Type', 'reference_document': 'W.O/S. O No',
+            'prepared_by': 'Prepared By', 'verified_by': 'Verified By', 'remarks': 'Remarks'
+        }
+
+        # THE COMPLETE DPS 2500 LIST (Strictly following your provided order)
+        dps2500_order = [
+            "Fan1", "NTC8 – Fan1 – 10K", "Fan2", "NTC10 – Fan2 – 10K",
+            "L1", "L2", "TR1", "TR2", "TR3", "TR4",
+            "CB01", "CB02", "K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8",
+            "FU1", "FU2", "FU3", "FU4", "FU5 – FU7", "FC1 – FU6", "ETH2 – ETH SWITCH", "CBF", "SW1", "SW2",
+            "HCTU1", "HCTV1", "HCTW1", "HCTU2", "HCTV2", "HCTW2", "HCTU3", "HCTV3", "HCTW3", "HCTU4", "HCTV4", "HCTW4", "HCTD1", "HCTD2", "NTC7 – P1 – 10K", "NTC9 – P2 – 10K",
+            "RA1 – 80E 500W", "RA2 – 80E 500W", "RA3 – RA8 – 100kΩ 50W", "RA9 – RA14 – 100kΩ 50W", "RA15 – RA17 – 60kΩ 50W", "RA18 – RA20 – 60kΩ 50W",
+            "A1: Domain controller", "A2-1: Interface card", "A2-2: Interface card", "A3-1: Controller card", "A3-2: Controller card", "A3-3: Controller card", "A5: Power Supply Oring card", "A5-1: Power Supply Oring card", "A6-1: ACB card", "A6-2: ACB card", "A7-1 to A7-6: Gate Interlock cards", "A10: SIM 100",
+            "Cap Bank – CF1 – CF9", "Cap Bank – CF10 – CF18",
+            "PS1 – 24V", "PS2 – 24V", "PS3 – 24V", "PS4 – 15V", "PS5 – 12V", "PS6 – 24V", "PS7 – 15V", "PS8 – ±12V", "PS9 – 24V", "PS10 – 15V",
+            "HMI",
+            "TR5", "KP1 – KP4", "PS11", "DIODE D1 – D4", "RA21 – RA22 – 80E 500W", "HU1, HU2", "RS1, RS2", "FU8 – FU26", "DS1, DS2 (Door Switch)", "IS01 (ISOMETER & COUPLING)",
+            # U1 Stack
+            "A4-1", "A4-2", "IGBT1", "IGBT2", "IGBT3", "IGBT4", "TS1 – 120°C", "TS2 – 120°C", "CD1 – CD6", "NTC1 – 10K", "SKYPER 1 U1", "SKYPER 2 U1", "SKYPER 3 U1", "SKYPER 4 U1",
+            # V1 Stack
+            "A4-3", "A4-4", "IGBT5", "IGBT6", "IGBT7", "IGBT8", "TS3 – 120°C", "TS4 – 120°C", "CD7 – CD14", "NTC2 – 10K", "SKYPER 1 V1", "SKYPER 2 V1", "SKYPER 3 V1", "SKYPER 4 V1",
+            # W1 Stack
+            "A4-5", "A4-6", "IGBT9", "IGBT10", "IGBT11", "IGBT12", "TS5 – 120°C", "TS6 – 120°C", "CD15 – CD21", "NTC3 – 10K", "SKYPER 1 W1", "SKYPER 2 W1", "SKYPER 3 W1", "SKYPER 4 W1",
+            # U2 Stack
+            "A4-7", "A4-8", "IGBT13", "IGBT14", "IGBT15", "IGBT16", "TS7 – 120°C", "TS8 – 120°C", "CD22 – CD28", "NTC4 – 10K", "SKYPER 1 U2", "SKYPER 2 U2", "SKYPER 3 U2", "SKYPER 4 U2",
+            # V2 Stack
+            "A4-9", "A4-10", "IGBT17", "IGBT18", "IGBT19", "IGBT20", "TS9 – 120°C", "TS10 – 120°C", "CD29 – CD35", "NTC5 – 10K", "SKYPER 1 V2", "SKYPER 2 V2", "SKYPER 3 V2", "SKYPER 4 V2",
+            # W2 Stack
+            "A4-11", "A4-12", "IGBT21", "IGBT22", "IGBT23", "IGBT24", "TS11 – 120°C", "TS12 – 120°C", "CD36 – CD42", "NTC6 – 10K", "SKYPER 1 W2", "SKYPER 2 W2", "SKYPER 3 W2", "SKYPER 4 W2"
+        ]
+
+        final_df.fillna('', inplace=True)
+        existing_rename = {k: v for k, v in column_mapping.items() if k in final_df.columns}
+        final_df.rename(columns=existing_rename, inplace=True)
+
+        meta_headers = list(existing_rename.values())
+        comp_cols = [c for c in dps2500_order if c in final_df.columns]
+        
+        final_df = final_df[meta_headers + comp_cols]
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            final_df.to_excel(writer, index=False, sheet_name='DPS 2500 Summary')
+        output.seek(0)
+        return send_file(output, as_attachment=True, download_name="Master_DPS2500_Report.xlsx")
+    except Exception as e:
+        return str(e), 500
+    finally:
+        conn.close()
