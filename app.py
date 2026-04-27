@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import pyodbc
@@ -7,6 +8,14 @@ from urllib.parse import unquote
 
 app = Flask(__name__)
 CORS(app)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://white-plant-0e7069000.7.azurestaticapps.net", "http://localhost:8000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Azure SQL Connection
 connection_string = (
