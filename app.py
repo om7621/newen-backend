@@ -11,7 +11,7 @@ CORS(app)
 # Azure SQL Connection
 connection_string = (
     "DRIVER={ODBC Driver 18 for SQL Server};"
-    "SERVER=newen-server.database.windows.net,1433;"
+    "SERVER=newen-server2.database.windows.net,1433;"
     "DATABASE=newen_traceability_db;"
     "UID=omsingh;"
     "PWD=Singhisblink7621;"
