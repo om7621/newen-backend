@@ -343,8 +343,19 @@ def export_dps2500_summary():
             "A10: SIM 100",
             "Cap Bank – CF1 – CF9", "Cap Bank – CF10 – CF18",
             "PS1 – 24V", "PS2 – 24V", "PS3 – 24V", "PS4 – 15V", "PS5 – 12V", "PS6 – 24V", "PS7 – 15V", "PS8 – ±12V", "PS9 – 24V", "PS10 – 15V",
+            # --- Update this section in your dps2500_order list in the backend ---
             "HMI",
-            "TR5", "KP1 – KP4", "PS11", "DIODE D1 – D4", "RA21 – RA22 – 80E 500W", "HU1, HU2", "RS1, RS2", "FU8 – FU26", "DS1, DS2 (Door Switch)", "IS01 (ISOMETER & COUPLING)",
+            "TR5", 
+            "KP1", "KP2", "KP3", "KP4",  # Separated
+            "PS11", 
+            "DIODE D1 – D4", 
+            "RA21 – RA22 – 80E 500W", 
+            "HU1, HU2", 
+            "RS1, RS2", 
+            "FU8 – FU26", 
+            "DS1, DS2 (Door Switch)", 
+            "IS01 ISOMETER", "IS01 COUPLING", # Separated
+            # ...
             # U1 Stack
             "A4-1", "A4-2", "IGBT1", "IGBT2", "IGBT3", "IGBT4", "TS1 – 120°C", "TS2 – 120°C", "CD1 – CD6", "NTC1 – 10K", "SKYPER 1 U1", "SKYPER 2 U1", "SKYPER 3 U1", "SKYPER 4 U1",
             # V1 Stack
