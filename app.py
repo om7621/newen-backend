@@ -19,7 +19,7 @@ connection_string = (
     "PWD=Singhisblink7621;"
     "Encrypt=yes;"
     "TrustServerCertificate=yes;"
-    "Connection Timeout=30;"
+    "Connection Timeout=120;"
 )
 
 def get_db_connection():
