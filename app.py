@@ -9,9 +9,11 @@ app = Flask(__name__)
 CORS(app)
 
 # Azure SQL Connection
+from urllib.parse import unquote # Add this to the top
+# ...
 connection_string = (
     "DRIVER={ODBC Driver 18 for SQL Server};"
-    "SERVER=newen-server2.database.windows.net,1433;"
+    "SERVER=newen-server.database.windows.net,1433;" # Verified from your screenshot
     "DATABASE=newen_traceability_db;"
     "UID=omsingh;"
     "PWD=Singhisblink7621;"
@@ -91,10 +93,9 @@ def sync_full_panel():
         panel.get('panel_serial'), panel.get('project_name'), panel.get('product_type'), panel.get('prepared_by'), start_date, 
         panel.get('reference_document'), panel.get('verified_by'), panel.get('remarks'), panel.get('status', 'IN_PROGRESS'))
 
-        # --- UPSERT COMPONENTS (Using sync_time as per your schema) ---
+        # --- UPSERT COMPONENTS ---
         for comp in components:
-            cursor.execute("""
-                IF EXISTS (SELECT 1 FROM Components WHERE panel_serial = ? AND component_name = ?)
+            cursor.execute("""IF EXISTS (SELECT 1 FROM Components WHERE panel_serial = ? AND component_name = ?)
                 BEGIN
                     UPDATE Components SET section_name = ?, make = ?, serial_number = ?, sync_time = GETDATE()
                     WHERE panel_serial = ? AND component_name = ?
