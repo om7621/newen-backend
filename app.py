@@ -13,7 +13,7 @@ from urllib.parse import unquote # Add this to the top
 # ...
 connection_string = (
     "DRIVER={ODBC Driver 18 for SQL Server};"
-    "SERVER=newen-server.database.windows.net,1433;" # Verified from your screenshot
+    "SERVER=newen-server2.database.windows.net,1433;" # Verified from your screenshot
     "DATABASE=newen_traceability_db;"
     "UID=omsingh;"
     "PWD=Singhisblink7621;"
