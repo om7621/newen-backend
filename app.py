@@ -169,15 +169,15 @@ def export_excel():
 
 # ========================================================
 # ========================================================
-# 5. EXPORT CPS3000 MASTER EXCEL (Corrected Order)
+# 5. EXPORT CPS 3000 MASTER EXCEL (Corrected Order)
 # ========================================================
 @app.route('/export_cps_summary', methods=['GET'])
 def export_cps_summary():
     conn = get_db_connection()
     try:
-        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = 'CPS3000'", conn)
+        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = 'CPS 3000'", conn)
         components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
-        if panels_df.empty: return "No CPS3000 data found", 404
+        if panels_df.empty: return "No CPS 3000 data found", 404
 
         if not components_df.empty:
             components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
@@ -231,9 +231,9 @@ def export_cps_summary():
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            final_df.to_excel(writer, index=False, sheet_name='CPS3000 Summary')
+            final_df.to_excel(writer, index=False, sheet_name='CPS 3000 Summary')
         output.seek(0)
-        return send_file(output, as_attachment=True, download_name="Master_CPS3000_Report.xlsx")
+        return send_file(output, as_attachment=True, download_name="Master_CPS 3000_Report.xlsx")
     except Exception as e:
         return str(e), 500
     finally:
@@ -306,16 +306,16 @@ def export_dps_summary():
         conn.close()
         
 # ========================================================
-# 7. EXPORT DPS 2500 MASTER EXCEL (Complete Ordered List)
+# 7. EXPORT CPS 2500 MASTER EXCEL (Complete Ordered List)
 # ========================================================
 @app.route('/export_dps2500_summary', methods=['GET'])
 def export_dps2500_summary():
     conn = get_db_connection()
     try:
-        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = 'DPS 2500'", conn)
+        panels_df = pd.read_sql("SELECT * FROM Panels WHERE product_type = 'CPS 2500'", conn)
         components_df = pd.read_sql("SELECT panel_serial, component_name, serial_number FROM Components", conn)
         
-        if panels_df.empty: return "No DPS 2500 data found", 404
+        if panels_df.empty: return "No CPS 2500 data found", 404
 
         if not components_df.empty:
             components_df = components_df.drop_duplicates(subset=['panel_serial', 'component_name'], keep='last')
@@ -330,7 +330,7 @@ def export_dps2500_summary():
             'prepared_by': 'Prepared By', 'verified_by': 'Verified By', 'remarks': 'Remarks'
         }
 
-        # THE COMPLETE DPS 2500 LIST (Strictly following your provided order)
+        # THE COMPLETE CPS 2500 LIST (Strictly following your provided order)
         dps2500_order = [
             "Fan1", "NTC8 – Fan1 – 10K", "Fan2", "NTC10 – Fan2 – 10K",
             "L1", "L2", "TR1", "TR2", "TR3", "TR4",
@@ -368,9 +368,9 @@ def export_dps2500_summary():
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            final_df.to_excel(writer, index=False, sheet_name='DPS 2500 Summary')
+            final_df.to_excel(writer, index=False, sheet_name='CPS 2500 Summary')
         output.seek(0)
-        return send_file(output, as_attachment=True, download_name="Master_DPS2500_Report.xlsx")
+        return send_file(output, as_attachment=True, download_name="Master_CPS2500_Report.xlsx")
     except Exception as e:
         return str(e), 500
     finally:
