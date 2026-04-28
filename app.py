@@ -330,7 +330,7 @@ def export_dps2500_summary():
             'prepared_by': 'Prepared By', 'verified_by': 'Verified By', 'remarks': 'Remarks'
         }
 
-        # THE COMPLETE CPS 2500 LIST (Strictly following your provided order)
+        # THE COMPLETE CPS 2500 LIST (Updated with individual Gate Interlock Cards)
         dps2500_order = [
             "Fan1", "NTC8 – Fan1 – 10K", "Fan2", "NTC10 – Fan2 – 10K",
             "L1", "L2", "TR1", "TR2", "TR3", "TR4",
@@ -338,7 +338,9 @@ def export_dps2500_summary():
             "FU1", "FU2", "FU3", "FU4", "FU5 – FU7", "FC1 – FU6", "ETH2 – ETH SWITCH", "CBF", "SW1", "SW2",
             "HCTU1", "HCTV1", "HCTW1", "HCTU2", "HCTV2", "HCTW2", "HCTU3", "HCTV3", "HCTW3", "HCTU4", "HCTV4", "HCTW4", "HCTD1", "HCTD2", "NTC7 – P1 – 10K", "NTC9 – P2 – 10K",
             "RA1 – 80E 500W", "RA2 – 80E 500W", "RA3 – RA8 – 100kΩ 50W", "RA9 – RA14 – 100kΩ 50W", "RA15 – RA17 – 60kΩ 50W", "RA18 – RA20 – 60kΩ 50W",
-            "A1: Domain controller", "A2-1: Interface card", "A2-2: Interface card", "A3-1: Controller card", "A3-2: Controller card", "A3-3: Controller card", "A5: Power Supply Oring card", "A5-1: Power Supply Oring card", "A6-1: ACB card", "A6-2: ACB card", "A7-1 to A7-6: Gate Interlock cards", "A10: SIM 100",
+            "A1: Domain controller", "A2-1: Interface card", "A2-2: Interface card", "A3-1: Controller card", "A3-2: Controller card", "A3-3: Controller card", "A5: Power Supply Oring card", "A5-1: Power Supply Oring card", "A6-1: ACB card", "A6-2: ACB card", 
+            "A7-1: Gate Interlock card", "A7-2: Gate Interlock card", "A7-3: Gate Interlock card", "A7-4: Gate Interlock card", "A7-5: Gate Interlock card", "A7-6: Gate Interlock card", # Individual items
+            "A10: SIM 100",
             "Cap Bank – CF1 – CF9", "Cap Bank – CF10 – CF18",
             "PS1 – 24V", "PS2 – 24V", "PS3 – 24V", "PS4 – 15V", "PS5 – 12V", "PS6 – 24V", "PS7 – 15V", "PS8 – ±12V", "PS9 – 24V", "PS10 – 15V",
             "HMI",
